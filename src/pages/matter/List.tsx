@@ -369,7 +369,6 @@ export default class List extends TankComponent<IProps, IState> {
     const files = f instanceof FileList ? f : [f];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      console.log(file);
       // 判断文件是否是文件夹，是的话则停止上传
       const fileReader = new FileReader();
       fileReader.readAsDataURL(files[i].slice(0, 3));

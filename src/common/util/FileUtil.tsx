@@ -2,6 +2,7 @@ import MimeUtil from "./MimeUtil";
 import StringUtil from "./StringUtil";
 import Lang from "../model/global/Lang";
 import CSV from "comma-separated-values";
+import SparkMD5 from "spark-md5";
 import archiveSvg from "../../assets/image/file/archive.svg";
 import audioSvg from "../../assets/image/file/audio.svg";
 import docSvg from "../../assets/image/file/doc.svg";
@@ -124,27 +125,26 @@ export default class FileUtil {
     }
   }
 
-
   //把一个大小转变成方便读的格式
   //human readable file size
   static humanFileSize(bytes: number, si: boolean = false): string {
     if (bytes == -1) {
-      return Lang.t("preference.noLimit")
+      return Lang.t("preference.noLimit");
     }
 
-    let thresh = si ? 1000 : 1024
+    let thresh = si ? 1000 : 1024;
     if (Math.abs(bytes) < thresh) {
-      return bytes + ' B'
+      return bytes + " B";
     }
     let units = si
-      ? ['KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB']
-      : ['kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
-    let u = -1
+      ? ["KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"]
+      : ["kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+    let u = -1;
     do {
-      bytes /= thresh
-      ++u
-    } while (Math.abs(bytes) >= thresh && u < units.length - 1)
-    return bytes.toFixed(1) + ' ' + units[u]
+      bytes /= thresh;
+      ++u;
+    } while (Math.abs(bytes) >= thresh && u < units.length - 1);
+    return bytes.toFixed(1) + " " + units[u];
   }
 
   static getErrorLogsToCSVUrl(logs: object) {
@@ -159,6 +159,10 @@ export default class FileUtil {
       return window.URL.createObjectURL(blob);
     }
     return "";
-  };
+  }
 
+  static slice =
+    File.prototype.slice ||
+    (File.prototype as any).mozSlice ||
+    (File.prototype as any).webkitSlice;
 }

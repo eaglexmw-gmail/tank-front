@@ -16,6 +16,7 @@ import SafeUtil from "../../util/SafeUtil";
 import ImagePreviewer from "../../../pages/widget/previewer/ImagePreviewer";
 import MessageBoxUtil from "../../util/MessageBoxUtil";
 import PreviewerHelper from "../../../pages/widget/previewer/PreviewerHelper";
+import SparkMD5 from "spark-md5";
 
 export default class Matter extends BaseEntity {
   puuid: string = "";
@@ -71,6 +72,7 @@ export default class Matter extends BaseEntity {
   static URL_MATTER_ZIP = "/api/matter/zip";
 
   static MATTER_ROOT = "root";
+  static CHUNK_SIZE = 100 * 1024 * 1024; // 100MB
 
   //下载zip包
   static downloadZip(uuidsString: string) {
@@ -90,8 +92,8 @@ export default class Matter extends BaseEntity {
     this.assignEntity("deleteTime", Date);
   }
 
-  getTAG():string {
-    return "matter"
+  getTAG(): string {
+    return "matter";
   }
   getForm(): any {
     return {
@@ -462,8 +464,87 @@ export default class Matter extends BaseEntity {
     return false;
   }
 
+  static md5(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const chunkSize = Matter.CHUNK_SIZE;
+      const chunksLength = Math.ceil(file.size / chunkSize);
+      let currentChunk = 0;
+      let spark = new SparkMD5.ArrayBuffer();
+      let fileReader = new FileReader();
+      fileReader.onload = function (e) {
+        spark.append(e.target!.result as ArrayBuffer); // Append array buffer
+        currentChunk++;
+        if (currentChunk < chunksLength) {
+          loadNext();
+        } else {
+          resolve(spark.end());
+        }
+      };
+      fileReader.onerror = function (err) {
+        reject(err);
+      };
+      function loadNext() {
+        let start = currentChunk * chunkSize;
+        let end =
+          start + chunkSize >= file.size ? file.size : start + chunkSize;
+        fileReader.readAsArrayBuffer(FileUtil.slice.call(file, start, end));
+      }
+      loadNext();
+    });
+  }
+
+  async httpChunkUpload(successCallback?: any, failureCallback?: any) {
+    console.log("this.file", this.file);
+    const chunkSize = Matter.CHUNK_SIZE;
+
+    const md5 = await Matter.md5(this.file!);
+
+    // todo 接口根据md5请求已上传的片索引
+    const checkChunkIndexesUploaded = (): number[] => {
+      return [];
+    };
+
+    // check whether file md5 exist
+    const chunkIndexesUploaded = checkChunkIndexesUploaded();
+
+    const chunksLength = Math.ceil(this.file!.size / chunkSize);
+    // 说明有未上传的切片
+    if (chunkIndexesUploaded.length < chunksLength) {
+      // 上传切片
+      const uploadChunk = async (index: number, md5: string, file: File) => {
+        return new Promise((resolve, reject) => {
+          let end =
+            (index + 1) * chunkSize >= file.size
+              ? file.size
+              : (index + 1) * chunkSize;
+
+          const formData = new FormData();
+          formData.append("index", index.toString());
+          formData.append("md5", md5);
+          formData.append(
+            "data",
+            FileUtil.slice.call(file, index * chunkSize, end)
+          );
+          // todo 发送上传分片请求
+          // todo 上传进度
+          resolve(null);
+        });
+      };
+
+      const requestList = [];
+      for (let i = 0; i < chunksLength; i++) {
+        if (!chunkIndexesUploaded.includes(i)) {
+          requestList.push(uploadChunk(i, md5, this.file!));
+        }
+      }
+      await Promise.all(requestList);
+      // todo 发送合并分片请求
+    }
+    // todo 发起合并切片请求
+  }
+
   //文件上传
-  httpUpload(successCallback?: any, failureCallback?: any) {
+  async httpUpload(successCallback?: any, failureCallback?: any) {
     let that = this;
 
     //验证是否装填好
@@ -482,8 +563,15 @@ export default class Matter extends BaseEntity {
       return;
     }
 
+    // todo 是否开启分片上传策略
+    if (true) {
+      console.log(this.file!.size >= Matter.CHUNK_SIZE);
+      this.httpChunkUpload(successCallback, failureCallback);
+      return;
+    }
+
     //（兼容性：chrome，ff，IE9及以上）
-    let formData = new FormData();
+    const formData = new FormData();
 
     formData.append("userUuid", that.userUuid);
     formData.append("puuid", that.puuid);
